@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -37,9 +38,30 @@ func main() {
 
 	users := generateUsers(100)
 
-	for _, user := range users {
-		saveUserInfo(user)
+	numWorkers := 20
+
+	jobs := make(chan User)
+	var wg sync.WaitGroup
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+
+		go func(workerID int) {
+			defer wg.Done()
+			for user := range jobs {
+				fmt.Printf("worker %d WRITING FILE FOR UID %d\n", workerID, user.id)
+				saveUserInfo(user)
+			}
+		}(i + 1)
 	}
+
+	for _, user := range users {
+		jobs <- user
+	}
+
+	close(jobs)
+
+	wg.Wait()
 
 	fmt.Printf("DONE! Time Elapsed: %.2f seconds\n", time.Since(startTime).Seconds())
 }
@@ -54,7 +76,7 @@ func saveUserInfo(user User) {
 	}
 
 	file.WriteString(user.getActivityInfo())
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 100)
 }
 
 func generateUsers(count int) []User {
@@ -67,7 +89,7 @@ func generateUsers(count int) []User {
 			logs:  generateLogs(rand.Intn(1000)),
 		}
 		fmt.Printf("generated user %d\n", i+1)
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Millisecond * 10)
 	}
 
 	return users
